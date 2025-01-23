@@ -103,14 +103,16 @@ class OrderConsumer {
   }
 
   private async processOrder(order: Order): Promise<void> {
-    // Simulasi processing time 1-3 detik
-    const processingTime = Math.random() * 2000 + 1000;
-    await new Promise((resolve) => setTimeout(resolve, processingTime));
-
-    // Simulasi random error (10% chance)
-    if (Math.random() < 0.1) {
-      throw new Error("Random processing error");
-    }
+    // Simulate processing logic
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (Math.random() < 0.3) {
+          reject(new Error("Simulated processing error"));
+        } else {
+          resolve();
+        }
+      }, 1000);
+    });
   }
 }
 
