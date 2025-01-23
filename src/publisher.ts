@@ -46,29 +46,6 @@ class OrderPublisher {
     }
   }
 
-  async publishOrder(order: Order) {
-    if (!this.channel) {
-      throw new Error("Channel not established");
-    }
-
-    try {
-      const success = this.channel.publish(
-        config.exchange,
-        "order.new",
-        Buffer.from(JSON.stringify(order)),
-        { persistent: true }
-      );
-
-      console.log(
-        `Order ${order.marketplace}_${order.id}_${order.status} published successfully`
-      );
-      return success;
-    } catch (error) {
-      console.error("Error publishing order:", error);
-      throw error;
-    }
-  }
-
   async publishBatchOrders(orders: Order[]) {
     if (!this.channel) {
       throw new Error("Channel not established");
@@ -78,7 +55,7 @@ class OrderPublisher {
       const promises = orders.map((order) =>
         this.channel!.publish(
           config.exchange,
-          "order.new",
+          config.queue,
           Buffer.from(JSON.stringify(order)),
           { persistent: true }
         )
