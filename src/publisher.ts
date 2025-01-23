@@ -4,20 +4,42 @@ import { Order } from "./types";
 
 class OrderPublisher {
   private channel: amqp.Channel | null = null;
-
   async connect() {
     try {
       const connection = await amqp.connect(config.amqpUrl);
       this.channel = await connection.createChannel();
 
-      // Declare exchange dan queue
+      // Declare main exchange and queue
       await this.channel.assertExchange(config.exchange, "direct", {
         durable: true,
       });
-      await this.channel.assertQueue(config.queue, { durable: true });
-      await this.channel.bindQueue(config.queue, config.exchange, "order.new");
+      await this.channel.assertQueue(config.queue, {
+        durable: true,
+        arguments: {
+          "x-dead-letter-exchange": config.dlx.exchange, // Redirect to DLX
+        },
+      });
+      await this.channel.bindQueue(config.queue, config.exchange, config.queue);
 
-      console.log("Publisher connected to RabbitMQ");
+      // Declare DLX exchange and queue
+      await this.channel.assertExchange(config.dlx.exchange, "direct", {
+        durable: true,
+      });
+      await this.channel.assertQueue(config.dlx.queue, {
+        durable: true,
+        arguments: {
+          "x-message-ttl": config.dlx.messageTTL, // TTL in milliseconds
+          "x-dead-letter-exchange": config.exchange, // Redirect back to main exchange
+          "x-dead-letter-routing-key": config.queue, // Redirect back to main queue
+        },
+      });
+      await this.channel.bindQueue(
+        config.dlx.queue,
+        config.dlx.exchange,
+        config.dlx.queue
+      );
+
+      console.log("Publisher connected to RabbitMQ with DLX configuration");
     } catch (error) {
       console.error("Error connecting to RabbitMQ:", error);
       throw error;
