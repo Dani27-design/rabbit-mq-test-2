@@ -15,7 +15,7 @@ class OrderConsumer {
       this.channel = await this.connection.createChannel();
       await this.channel.prefetch(1);
       // Setup queues and exchanges
-      await this.setupQueues();
+      // await this.setupQueues();
 
       // Start consuming messages
       this.consume();
@@ -30,37 +30,38 @@ class OrderConsumer {
       throw new Error("Channel not established");
     }
 
-    // Declare main exchange and queue
+    // Main exchange
     await this.channel.assertExchange(config.exchange, "direct", {
       durable: true,
     });
-    await this.channel.assertQueue(config.queue, {
-      durable: true,
-      arguments: {
-        "x-dead-letter-exchange": config.dlx.exchange, // Redirect to DLX
-      },
-    });
-    await this.channel.bindQueue(config.queue, config.exchange, config.queue);
 
-    // Declare DLX exchange and queue
+    // DLX exchange
     await this.channel.assertExchange(config.dlx.exchange, "direct", {
       durable: true,
     });
+
+    // Main queue
+    await this.channel.assertQueue(config.queue, {
+      durable: true,
+      arguments: {
+        "x-dead-letter-exchange": config.dlx.exchange,
+        "x-dead-letter-routing-key": config.dlx.queue,
+      },
+    });
+
+    // DLX queue
     await this.channel.assertQueue(config.dlx.queue, {
       durable: true,
       arguments: {
-        "x-message-ttl": config.dlx.messageTTL, // TTL in milliseconds
-        "x-dead-letter-exchange": config.exchange, // Redirect back to main exchange
-        "x-dead-letter-routing-key": config.queue, // Redirect back to main queue
+        "x-message-ttl": config.dlx.messageTTL,
       },
     });
-    await this.channel.bindQueue(
-      config.dlx.queue,
-      config.dlx.exchange,
-      config.dlx.queue
-    );
 
-    console.log("Queues and exchanges are set up");
+    // Bindings
+    await this.channel.bindQueue(config.queue, config.exchange, config.queue);
+    await this.channel.bindQueue(config.dlx.queue, config.dlx.exchange, config.dlx.queue);
+
+    console.log("Queues and exchanges are set up with DLX");
   }
 
   private async consume() {
@@ -78,27 +79,24 @@ class OrderConsumer {
             `Consumer ${this.consumerId} processing order: ${order.marketplace}_${order.id}_${order.status}`
           );
 
-          // Simulate processing
-          await this.processOrder(order);
-
-          // Acknowledge message
-          if (this.channel) {
-            this.channel.ack(msg);
-          }
+          await this.processOrder(order).catch((error) => {
+            throw new Error(`Order processing error: ${error.message}`);
+          });
+          this.channel?.ack(msg);
+          
           console.log(
             `Consumer ${this.consumerId} completed order: ${order.marketplace}_${order.id}_${order.status}`
           );
         } catch (error) {
           console.error(`Consumer ${this.consumerId} processing error:`, error);
-          // Nack message and send to DLX
-          if (this.channel) {
-            this.channel.nack(msg, false, false);
-          }
+          // Reject and don't requeue - will go to DLX
+          this.channel?.reject(msg, false);
+          console.log(`Message sent to DLX queue: ${msg.content.toString()}`);
         }
       });
     } catch (error) {
       console.error(`Consumer ${this.consumerId} consume error:`, error);
-      setTimeout(() => this.connect(), 5000); // Retry connection
+      setTimeout(() => this.connect(), 5000);
     }
   }
 

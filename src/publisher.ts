@@ -4,40 +4,83 @@ import { Order } from "./types";
 
 class OrderPublisher {
   private channel: amqp.Channel | null = null;
+  // async connect() {
+  //   try {
+  //     const connection = await amqp.connect(config.amqpUrl);
+  //     this.channel = await connection.createChannel();
+
+  //     // Declare main exchange and queue
+  //     await this.channel.assertExchange(config.exchange, "direct", {
+  //       durable: true,
+  //     });
+  //     await this.channel.assertQueue(config.queue, {
+  //       durable: true,
+  //       arguments: {
+  //         "x-dead-letter-exchange": config.dlx.exchange, // Redirect to DLX
+  //       },
+  //     });
+  //     await this.channel.bindQueue(config.queue, config.exchange, config.queue);
+
+  //     // Declare DLX exchange and queue
+  //     await this.channel.assertExchange(config.dlx.exchange, "direct", {
+  //       durable: true,
+  //     });
+  //     await this.channel.assertQueue(config.dlx.queue, {
+  //       durable: true,
+  //       arguments: {
+  //         "x-message-ttl": config.dlx.messageTTL, // TTL in milliseconds
+  //         "x-dead-letter-exchange": config.exchange, // Redirect back to main exchange
+  //         "x-dead-letter-routing-key": config.queue, // Redirect back to main queue
+  //       },
+  //     });
+  //     await this.channel.bindQueue(
+  //       config.dlx.queue,
+  //       config.dlx.exchange,
+  //       config.dlx.queue
+  //     );
+
+  //     console.log("Publisher connected to RabbitMQ with DLX configuration");
+  //   } catch (error) {
+  //     console.error("Error connecting to RabbitMQ:", error);
+  //     throw error;
+  //   }
+  // }
+
   async connect() {
     try {
       const connection = await amqp.connect(config.amqpUrl);
       this.channel = await connection.createChannel();
 
-      // Declare main exchange and queue
+      // Main exchange
       await this.channel.assertExchange(config.exchange, "direct", {
         durable: true,
       });
-      await this.channel.assertQueue(config.queue, {
-        durable: true,
-        arguments: {
-          "x-dead-letter-exchange": config.dlx.exchange, // Redirect to DLX
-        },
-      });
-      await this.channel.bindQueue(config.queue, config.exchange, config.queue);
 
-      // Declare DLX exchange and queue
+      // DLX exchange
       await this.channel.assertExchange(config.dlx.exchange, "direct", {
         durable: true,
       });
+
+      // Main queue
+      await this.channel.assertQueue(config.queue, {
+        durable: true,
+        arguments: {
+          "x-dead-letter-exchange": config.dlx.exchange,
+          "x-dead-letter-routing-key": config.dlx.queue,
+        },
+      });
+
+      // DLX queue
       await this.channel.assertQueue(config.dlx.queue, {
         durable: true,
         arguments: {
-          "x-message-ttl": config.dlx.messageTTL, // TTL in milliseconds
-          "x-dead-letter-exchange": config.exchange, // Redirect back to main exchange
-          "x-dead-letter-routing-key": config.queue, // Redirect back to main queue
+          "x-message-ttl": config.dlx.messageTTL,
         },
       });
-      await this.channel.bindQueue(
-        config.dlx.queue,
-        config.dlx.exchange,
-        config.dlx.queue
-      );
+
+      // Bindings
+      await this.channel.bindQueue(config.queue, config.exchange, config.queue);
+      await this.channel.bindQueue(config.dlx.queue, config.dlx.exchange, config.dlx.queue);
 
       console.log("Publisher connected to RabbitMQ with DLX configuration");
     } catch (error) {
