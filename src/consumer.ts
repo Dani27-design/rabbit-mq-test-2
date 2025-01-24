@@ -72,27 +72,28 @@ class OrderConsumer {
     try {
       await this.channel.consume(config.queue, async (msg) => {
         if (!msg) return;
+        this.channel?.ack(msg);
 
-        try {
-          const order: Order = JSON.parse(msg.content.toString());
-          console.log(
-            `Consumer ${this.consumerId} processing order: ${order.marketplace}_${order.id}_${order.status}`
-          );
+        // try {
+        //   const order: Order = JSON.parse(msg.content.toString());
+        //   console.log(
+        //     `Consumer ${this.consumerId} processing order: ${order.marketplace}_${order.id}_${order.status}`
+        //   );
 
-          await this.processOrder(order).catch((error) => {
-            throw new Error(`Order processing error: ${error.message}`);
-          });
-          this.channel?.ack(msg);
+        //   await this.processOrder(order).catch((error) => {
+        //     throw new Error(`Order processing error: ${error.message}`);
+        //   });
+        //   this.channel?.ack(msg);
           
-          console.log(
-            `Consumer ${this.consumerId} completed order: ${order.marketplace}_${order.id}_${order.status}`
-          );
-        } catch (error) {
-          console.error(`Consumer ${this.consumerId} processing error:`, error);
-          // Reject and don't requeue - will go to DLX
-          this.channel?.reject(msg, false);
-          console.log(`Message sent to DLX queue: ${msg.content.toString()}`);
-        }
+        //   console.log(
+        //     `Consumer ${this.consumerId} completed order: ${order.marketplace}_${order.id}_${order.status}`
+        //   );
+        // } catch (error) {
+        //   console.error(`Consumer ${this.consumerId} processing error:`, error);
+        //   // Reject and don't requeue - will go to DLX
+        //   this.channel?.reject(msg, false);
+        //   console.log(`Message sent to DLX queue: ${msg.content.toString()}`);
+        // }
       });
     } catch (error) {
       console.error(`Consumer ${this.consumerId} consume error:`, error);
